@@ -58,7 +58,7 @@ export function Header() {
 						</Button>
 					) : (
 						<>
-							<Box sx={{pr: 1}}>
+							<Box sx={{ pr: 1 }}>
 								<Typography color="black" variant="caption">
 									Logged in as {auth.user}{" "}
 								</Typography>
