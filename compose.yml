@@ -1,0 +1,9 @@
+services:
+  api:
+    container_name: api
+    build: ./src/api/
+    ports:
+      - 5000:5000
+    volumes:
+      - ./src/api:/app
+    restart: always
