@@ -59,7 +59,7 @@ export function Header() {
 					) : (
 						<>
 							<Box sx={{ pr: 1 }}>
-								<Typography color="black" variant="caption">
+								<Typography variant="caption">
 									Logged in as {auth.user}{" "}
 								</Typography>
 							</Box>
@@ -178,6 +178,11 @@ function LoginPage() {
 				<label>
 					Username: <input name="username" type="text" />
 				</label>{" "}
+				<br />
+				<label>
+					Password: <input name="password" type="password" />
+				</label>{" "}
+				<br />
 				<button type="submit">Login</button>
 			</form>
 		</div>
