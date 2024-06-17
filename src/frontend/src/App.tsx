@@ -1,4 +1,4 @@
-import React from "react";
+import { useState, createContext, useContext, useEffect } from "react";
 import {
 	Routes,
 	Route,
@@ -8,7 +8,7 @@ import {
 	Navigate,
 	Outlet,
 } from "react-router-dom";
-import { fakeAuthProvider } from "./auth";
+import axios from "axios";
 
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
@@ -99,36 +99,75 @@ function Layout() {
 
 interface AuthContextType {
 	user: any;
-	signin: (user: string, callback: VoidFunction) => void;
+	signin: (username: string, password: string, callback: VoidFunction) => void;
 	signout: (callback: VoidFunction) => void;
 }
 
-let AuthContext = React.createContext<AuthContextType>(null!);
+let AuthContext = createContext<AuthContextType>(null!);
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
-	let [user, setUser] = React.useState<any>(null);
+	const [user, setUser] = useState<any>(null);
+	const [loading, setLoading] = useState<Boolean>(true);
+	let navigate = useNavigate();
 
-	let signin = (newUser: string, callback: VoidFunction) => {
-		return fakeAuthProvider.signin(() => {
-			setUser(newUser);
-			callback();
-		});
+	const config = {
+		withCredentials: true,
+		headers: {
+			"Content-Type": "application/json",
+		},
+	};
+
+	useEffect(() => {
+		axios
+			.get("http://localhost:5000/protected", config)
+			.then((resp) => {
+				setUser(resp.data.logged_in_as);
+			})
+			.catch((resp: any) => {
+				if (resp.response.status === 401) {
+					signout(() => navigate("/"));
+				}
+			})
+			.finally(() => {
+				setLoading(false);
+			});
+	}, []);
+
+	let signin = (username: string, password: string, callback: VoidFunction) => {
+		const authData = { username: username, password: password };
+		axios
+			.post("http://localhost:5000/login", authData, config)
+			.then((resp: any) => {
+				axios
+					.get("http://localhost:5000/protected", config)
+					.then((resp: any) => {
+						setUser(resp.data.logged_in_as);
+					});
+			});
 	};
 
 	let signout = (callback: VoidFunction) => {
-		return fakeAuthProvider.signout(() => {
-			setUser(null);
-			callback();
-		});
+		axios
+			.post("http://localhost:5000/logout", null, config)
+			.then((resp: any) => {
+				setUser(null);
+				console.log("Logged out");
+			});
 	};
 
 	let value = { user, signin, signout };
 
-	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+	return (
+		<>
+			{loading ? null : (
+				<AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+			)}
+		</>
+	);
 }
 
 function useAuth() {
-	return React.useContext(AuthContext);
+	return useContext(AuthContext);
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -150,16 +189,16 @@ function LoginPage() {
 	let navigate = useNavigate();
 	let location = useLocation();
 	let auth = useAuth();
+	const [username, setUsername] = useState<string>("");
+	const [password, setPassword] = useState<string>("");
 
 	let from = location.state?.from?.pathname || "/";
 
 	function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 
-		let formData = new FormData(event.currentTarget);
-		let username = formData.get("username") as string;
 
-		auth.signin(username, () => {
+		auth.signin(username, password, () => {
 			// Send them back to the page they tried to visit when they were
 			// redirected to the login page. Use { replace: true } so we don't create
 			// another entry in the history stack for the login page.  This means that
@@ -176,11 +215,21 @@ function LoginPage() {
 
 			<form onSubmit={handleSubmit}>
 				<label>
-					Username: <input name="username" type="text" />
+					Username:{" "}
+					<input
+						name="username"
+						type="text"
+						onChange={(e: any) => setUsername(e.target.value)}
+					/>
 				</label>{" "}
 				<br />
 				<label>
-					Password: <input name="password" type="password" />
+					Password:{" "}
+					<input
+						name="password"
+						type="password"
+						onChange={(e: any) => setPassword(e.target.value)}
+					/>
 				</label>{" "}
 				<br />
 				<button type="submit">Login</button>
