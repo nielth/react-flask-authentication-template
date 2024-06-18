@@ -15,7 +15,7 @@ import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import { Container, TextField } from "@mui/material";
+import { Container, TextField, Link as MuiLink } from "@mui/material";
 
 export default function App() {
   return (
@@ -241,16 +241,14 @@ function LoginPage() {
   let navigate = useNavigate();
   let location = useLocation();
   let auth = useAuth();
-  const [username, setUsername] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
 
   let from = location.state?.from?.pathname || "/";
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPassword("");
+    const data: any = new FormData(event.currentTarget);
 
-    auth.signin(username, password, () => {
+    auth.signin(data.get("username"), data.get("password"), () => {
       navigate(from, { replace: true });
     });
   }
@@ -282,8 +280,6 @@ function LoginPage() {
             name="username"
             autoFocus
             label="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
           />
           <TextField
             error={
@@ -297,9 +293,6 @@ function LoginPage() {
             id="password"
             name="password"
             label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             helperText={
               auth.error !== null && auth.error.response.status === 401
                 ? "Incorrect Username/Password"
@@ -325,36 +318,22 @@ function RegisterPage() {
   let navigate = useNavigate();
   let location = useLocation();
   let auth = useAuth();
-  const [username, setUsername] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [respError, setRespError] = useState<number | null>(null);
-  let from = location.state?.from?.pathname || "/";
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setRespError(null);
+    const data: any = new FormData(event.currentTarget);
 
-    axios
-      .post("http://localhost:5000/api/register", {
-        username: username,
-        password: password,
-      })
-      .then((resp) => {
-        console.log(resp);
-        if (resp.status === 201) {
-          auth.signin(username, password, () => {
-            navigate(from, { replace: true });
-          });
-        }
-      })
-      .catch((respError) => {
-        setRespError(respError.response.status);
-      })
-      .finally(() => {
-        setUsername("");
-        setPassword("");
-      });
+    const userData = {
+      username: data.get("username"),
+      password: data.get("password"),
+    };
+
+    axios.post("http://localhost:5000/api/register", userData)
+    .then((resp) => {
+      console.log(resp)
+    });
   }
+
   return (
     <Container maxWidth="xs">
       <Box
@@ -370,7 +349,11 @@ function RegisterPage() {
         </Typography>
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
           <TextField
-            error={respError ? true : false}
+            error={
+              auth.error !== null && auth.error.response.status === 401
+                ? true
+                : false
+            }
             margin="normal"
             required
             fullWidth
@@ -378,21 +361,24 @@ function RegisterPage() {
             name="username"
             autoFocus
             label="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
           />
           <TextField
-            error={respError ? true : false}
+            error={
+              auth.error !== null && auth.error.response.status === 401
+                ? true
+                : false
+            }
             margin="normal"
             required
             fullWidth
             id="password"
             name="password"
             label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            helperText={respError === 400 ? "User already exists" : null}
+            helperText={
+              auth.error !== null && auth.error.response.status === 401
+                ? "User already exists"
+                : null
+            }
           />
           <Button
             type="submit"
