@@ -1,5 +1,6 @@
 import uuid
 
+
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
@@ -110,7 +111,6 @@ def login():
     access_token = create_access_token(identity=username)
     set_access_cookies(response, access_token)
     return response
-
 
 
 # Use POST. In 2010, using GET was probably an acceptable answer. But today (in 2013), browsers will pre-fetch pages they "think" you will visit next.
