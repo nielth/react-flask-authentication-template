@@ -17,6 +17,8 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import { Container, TextField } from "@mui/material";
 
+const REACT_APP_API = process.env.REACT_APP_API || "";
+
 export default function App() {
   return (
     <AuthProvider>
@@ -63,7 +65,7 @@ export function Header() {
           ) : (
             <>
               <Box sx={{ pr: 1 }}>
-                <Typography variant="caption">
+                <Typography variant="caption" sx={{ fontStyle: "italic" }}>
                   Logged in as {auth.user}{" "}
                 </Typography>
               </Box>
@@ -125,32 +127,38 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     axios
-      .get("http://localhost:5000/protected", config)
+      .get(`${REACT_APP_API}/api/protected`, config)
       .then((resp) => {
-        setUser(resp.data.logged_in_as);
-        console.log(resp);
+        if (!user) {
+          setUser(resp.data.logged_in_as);
+        }
       })
       .catch((errorReq: any) => {
         if (errorReq.response) {
           // The request was made and the server responded with a status code
           // that falls out of the range of 2xx
+          if (user) {
+            signout(() => {});
+          }
         } else if (errorReq.request) {
-          navigate("/error", { state: { error: errorReq.toString() } });
+          navigate("/error", {
+            state: { error: JSON.parse(JSON.stringify(errorReq)) },
+          });
         }
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [navigate]);
+  }, []);
 
   function signin(username: string, password: string, callback: VoidFunction) {
     const authData = { username: username, password: password };
     setError(null);
     axios
-      .post("http://localhost:5000/login", authData, config)
+      .post(`${REACT_APP_API}/api/login`, authData, config)
       .then((resp: any) => {
         axios
-          .get("http://localhost:5000/protected", config)
+          .get(`${REACT_APP_API}/api/protected`, config)
           .then((resp: any) => {
             setUser(resp.data.logged_in_as);
             callback();
@@ -164,10 +172,9 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   let signout = (callback: VoidFunction) => {
     axios
-      .post("http://localhost:5000/logout", null, config)
+      .post(`${REACT_APP_API}/api/logout`, null, config)
       .then((resp: any) => {
         setUser(null);
-        console.log("Logged out");
         callback();
       });
   };
@@ -191,49 +198,101 @@ function useAuth() {
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   let auth = useAuth();
+  let navigate = useNavigate();
   let location = useLocation();
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    axios
+      .get(`${REACT_APP_API}/api/protected`, { withCredentials: true })
+      .then((resp) => {
+        console.log(resp);
+      })
+      .catch((respError) => {
+        if (respError.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          if (
+            (auth.user && respError.response.status === 401) ||
+            respError.response.status === 422
+          ) {
+            auth.signout(() => {
+              navigate("/login");
+            });
+          }
+        } else if (respError.request) {
+          navigate("/error", {
+            state: { error: JSON.parse(JSON.stringify(respError)) },
+          });
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [navigate]);
 
   if (!auth.user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return (
+      <>
+        {loading ? null : (
+          <>
+            <Navigate to="/login" state={{ from: location }} replace />
+          </>
+        )}
+        );
+      </>
+    );
   }
 
-  return children;
+  return <>{loading ? null : children}</>;
 }
 
 function NoPage() {
   const location = useLocation();
   const errorMessage: any = location.state?.error || {};
+  console.log(errorMessage);
   let errorContent;
 
   if (errorMessage.response) {
     errorContent = (
       <>
-        <h2>Error Response</h2>
-        <p>{errorMessage.response.data}</p>
-        <p>Status Code: {errorMessage.response.status}</p>
+        <Typography component="h1" variant="h6">
+          Error Response
+        </Typography>
+        <Typography>{errorMessage.response.data}</Typography>
+        <Typography>Status Code: {errorMessage.response.status}</Typography>
       </>
     );
   } else if (errorMessage.request) {
     errorContent = (
       <>
-        <h2>No Response</h2>
-        <p>The server did not respond to the request.</p>
+        <Typography component="h1" variant="h6">
+          No Response
+        </Typography>
+        <Typography>The server did not respond to the request.</Typography>
+      </>
+    );
+  } else if (errorMessage.code === "ERR_NETWORK") {
+    errorContent = (
+      <>
+        <Typography component="h1" variant="h6">
+          Server Error: Cannot contact API/backend
+        </Typography>
       </>
     );
   } else {
-    errorContent = (
-      <>
-        <h2>Error Message</h2>
-        <p>{errorMessage.message}</p>
-      </>
-    );
+    <Typography>{errorMessage.message}</Typography>;
   }
 
   return (
-    <div>
-      <h1>Error</h1>
-      {errorContent}
-    </div>
+    <>
+      <Container maxWidth="xs" sx={{ pt: 3 }}>
+        <Typography component="h1" variant="h4">
+          Error
+        </Typography>
+        {errorContent}
+      </Container>
+    </>
   );
 }
 
@@ -335,7 +394,7 @@ function RegisterPage() {
     setRespError(null);
 
     axios
-      .post("http://localhost:5000/api/register", {
+      .post(`${REACT_APP_API}/api/register`, {
         username: username,
         password: password,
       })

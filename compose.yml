@@ -7,3 +7,13 @@ services:
     volumes:
       - ./src/api:/app
     restart: always
+  nginx:
+    container_name: nginx
+    build:
+      context: ./src/frontend/
+    ports:
+      - 8080:80
+    restart: always
+    depends_on:
+      - api
+

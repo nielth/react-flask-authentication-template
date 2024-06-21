@@ -1,5 +1,5 @@
 import uuid
-
+import time
 
 from datetime import datetime
 from datetime import timedelta
@@ -99,7 +99,7 @@ def user_lookup_callback(_jwt_header, jwt_data):
 
 # Create a route to authenticate your users and return JWTs. The
 # create_access_token() function is used to actually generate the JWT.
-@app.route("/login", methods=["POST"])
+@app.route("/api/login", methods=["POST"])
 def login():
     username = request.json.get("username", None)
     password = request.json.get("password", None)
@@ -114,7 +114,7 @@ def login():
 
 
 # Use POST. In 2010, using GET was probably an acceptable answer. But today (in 2013), browsers will pre-fetch pages they "think" you will visit next.
-@app.route("/logout", methods=["POST"])
+@app.route("/api/logout", methods=["POST"])
 def logout():
     response = jsonify({"msg": "logout successful"})
     unset_jwt_cookies(response)
@@ -123,7 +123,7 @@ def logout():
 
 # Protect a route with jwt_required, which will kick out requests
 # without a valid JWT present.
-@app.route("/protected", methods=["GET"])
+@app.route("/api/protected", methods=["GET"])
 @jwt_required()
 def protected():
     # Access the identity of the current user with get_jwt_identity
