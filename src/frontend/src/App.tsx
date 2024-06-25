@@ -25,7 +25,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<PublicPage />} />
-          <Route path="/error" element={<NoPage />} />
+          <Route path="/error" element={<ErrorPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
@@ -50,9 +50,24 @@ export function Header() {
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            News
-          </Typography>
+          <Box sx={{ flexGrow: 1 }}>
+            <Button
+              color="inherit"
+              onClick={() => {
+                navigate("/");
+              }}
+            >
+              Home
+            </Button>
+            <Button
+              color="inherit"
+              onClick={() => {
+                navigate("/protected");
+              }}
+            >
+              Posts
+            </Button>
+          </Box>
           {!auth.user ? (
             <Button
               color="inherit"
@@ -87,19 +102,10 @@ export function Header() {
 
 function Layout() {
   return (
-    <div>
+    <>
       <Header />
-      <ul>
-        <li>
-          <Link to="/">Public Page</Link>
-        </li>
-        <li>
-          <Link to="/protected">Protected Page</Link>
-        </li>
-      </ul>
-
       <Outlet />
-    </div>
+    </>
   );
 }
 
@@ -117,6 +123,9 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState<Boolean>(true);
   const [error, setError] = useState<any>(null);
   let navigate = useNavigate();
+  let location = useLocation();
+
+  let from = location.pathname || "/";
 
   const config = {
     withCredentials: true,
@@ -129,20 +138,37 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     axios
       .get(`${REACT_APP_API}/api/protected`, config)
       .then((resp) => {
-        if (!user) {
+        if (!user && resp.status === 200) {
           setUser(resp.data.logged_in_as);
         }
+        if (from === "/error") {
+          navigate("/");
+        }
       })
+
       .catch((errorReq: any) => {
+        const parseData = JSON.parse(JSON.stringify(errorReq));
         if (errorReq.response) {
           // The request was made and the server responded with a status code
           // that falls out of the range of 2xx
-          if (user) {
-            signout(() => {});
+          if (
+            errorReq.response.status === 401 ||
+            errorReq.response.status === 422
+          ) {
+            if (user) {
+              signout(() => {});
+            }
+            if (from === "/error") {
+              navigate("/");
+            }
+          } else {
+            navigate("/error", {
+              state: { error: parseData },
+            });
           }
         } else if (errorReq.request) {
           navigate("/error", {
-            state: { error: JSON.parse(JSON.stringify(errorReq)) },
+            state: { error: parseData },
           });
         }
       })
@@ -165,8 +191,23 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
           });
       })
       .catch((errorReq) => {
-        console.log(errorReq);
-        setError(errorReq);
+        if (errorReq.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          if (errorReq.response.status === 401) {
+            setError(errorReq);
+          } else {
+            const parseData = JSON.parse(JSON.stringify(errorReq));
+            navigate("/error", {
+              state: { error: parseData },
+            });
+          }
+        } else {
+          const parseData = JSON.parse(JSON.stringify(errorReq));
+          navigate("/error", {
+            state: { error: parseData },
+          });
+        }
       });
   }
 
@@ -176,6 +217,12 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((resp: any) => {
         setUser(null);
         callback();
+      })
+      .catch((errorReq) => {
+        const parseData = JSON.parse(JSON.stringify(errorReq));
+        navigate("/error", {
+          state: { error: parseData },
+        });
       });
   };
 
@@ -205,24 +252,29 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   useEffect(() => {
     axios
       .get(`${REACT_APP_API}/api/protected`, { withCredentials: true })
-      .then((resp) => {
-        console.log(resp);
-      })
+      .then((resp) => {})
       .catch((respError) => {
+        const parseData = JSON.parse(JSON.stringify(respError));
         if (respError.response) {
           // The request was made and the server responded with a status code
           // that falls out of the range of 2xx
           if (
-            (auth.user && respError.response.status === 401) ||
+            respError.response.status === 401 ||
             respError.response.status === 422
           ) {
-            auth.signout(() => {
-              navigate("/login");
+            if (auth.user) {
+              auth.signout(() => {
+                navigate("/login");
+              });
+            }
+          } else {
+            navigate("/error", {
+              state: { error: parseData },
             });
           }
-        } else if (respError.request) {
+        } else {
           navigate("/error", {
-            state: { error: JSON.parse(JSON.stringify(respError)) },
+            state: { error: parseData },
           });
         }
       })
@@ -247,7 +299,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return <>{loading ? null : children}</>;
 }
 
-function NoPage() {
+function ErrorPage() {
   const location = useLocation();
   const errorMessage: any = location.state?.error || {};
   console.log(errorMessage);
@@ -281,7 +333,12 @@ function NoPage() {
       </>
     );
   } else {
-    <Typography>{errorMessage.message}</Typography>;
+    <>
+      <Typography component="h1" variant="h6">
+        Unknown Error
+      </Typography>
+      <Typography>{errorMessage.message}</Typography>;
+    </>;
   }
 
   return (
@@ -399,15 +456,30 @@ function RegisterPage() {
         password: password,
       })
       .then((resp) => {
-        console.log(resp);
         if (resp.status === 201) {
           auth.signin(username, password, () => {
             navigate(from, { replace: true });
           });
         }
       })
-      .catch((respError) => {
-        setRespError(respError.response.status);
+      .catch((errorReq) => {
+        if (errorReq.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          if (errorReq.response.status === 400) {
+            setRespError(errorReq.response.status);
+          } else {
+            const parseData = JSON.parse(JSON.stringify(errorReq));
+            navigate("/error", {
+              state: { error: parseData },
+            });
+          }
+        } else {
+          const parseData = JSON.parse(JSON.stringify(errorReq));
+          navigate("/error", {
+            state: { error: parseData },
+          });
+        }
       })
       .finally(() => {
         setUsername("");
